@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script>
+
+let friends = [];
+
+let friend1 = {
+  name: '陳大同',
+  age: 26,
+  hobbies: ['爬山', '看電影', '煮咖啡'],
+  contact: {
+    phone: '0912345678',
+    email: 'datong@example.com'
+  }
+};
+
+let friend2 = {
+  name: '李小美',
+  age: 24,
+  hobbies: ['閱讀', '旅行'],
+  contact: {
+    phone: '0987654321',
+    email: 'xiaomei@example.com'
+  }
+};
+
+let friend3 = {
+  name: '王志強',
+  age: 28,
+  hobbies: ['打籃球', '攝影', '健身'],
+  contact: {
+    phone: '0977888999',
+    email: 'zhichiang@example.com'
+  }
+};
+
+
+friends.push(friend1, friend2, friend3);
+
+
+for (let i = 0; i < friends.length; i++) {
+
+  
+  if (i === 1) {
+    console.log(friends[i].name);
+  }
+
+  if (i === 0) {
+    console.log(friends[i].hobbies[2]);
+  }
+
+ 
+  if (i === 2) {
+    console.log(friends[i].contact.email);
+  }
+}
+
+
+for (let i = 0; i < friends.length; i++) {
+  if (i === 1) {
+    friends[i].hobbies.push('游泳');
+    console.log(friends[i].hobbies);
+  }
+}
+
+    </script>
+    
+</body>
+</html>
