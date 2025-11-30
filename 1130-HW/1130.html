@@ -225,7 +225,9 @@
     <h2>DeviceOrientation + DeviceMotion</h2>
     <p class="subtitle">請按下按鈕授權後，再旋轉手機與搖一搖觀察數值與 3D 手機動作。</p>
 
-    <button id="btn">取得感測器授權並開始</button>
+    <button id="btn">啟動感測器</button>
+    <button id="stopBtn" style="margin-top:10px; display:none; background:#dc2626;">關閉感測器</button>
+
     <p class="status-tip">⚠ 若無反應，請確認瀏覽器支援感測器，且以 HTTPS 或本機檔案開啟。</p>
 
     <!-- 3D 手機可視化 -->
@@ -310,6 +312,7 @@
 
 <script>
 const btn = document.getElementById("btn");
+const stopBtn = document.getElementById("stopBtn");
 
 // Orientation
 const alphaEl = document.getElementById("alpha");
@@ -333,6 +336,10 @@ const rGammaEl = document.getElementById("rGamma");
 
 // 3D phone wrapper
 const phoneWrapper = document.getElementById("phoneWrapper");
+
+// 用來記錄事件處理函式，方便之後 removeEventListener
+let orientationHandler = null;
+let motionHandler = null;
 
 btn.addEventListener("click", async () => {
     try {
@@ -360,7 +367,8 @@ btn.addEventListener("click", async () => {
             }
         }
 
-        window.addEventListener("deviceorientation", (event) => {
+        // === 設定並註冊事件監聽器 ===
+        orientationHandler = (event) => {
             const alpha = event.alpha ?? null; // 0~360
             const beta  = event.beta ?? null;  // -180~180 (X)
             const gamma = event.gamma ?? null; // -90~90  (Y)
@@ -369,9 +377,8 @@ btn.addEventListener("click", async () => {
             betaEl.textContent  = beta?.toFixed(2) ?? "-";
             gammaEl.textContent = gamma?.toFixed(2) ?? "-";
 
-            // === 更新 3D 手機姿態 ===
+            // 更新 3D 手機姿態
             if (alpha !== null && beta !== null && gamma !== null) {
-                // 適度縮放，避免轉太誇張
                 const rotX = clamp(beta, -70, 70);
                 const rotY = clamp(gamma * 1.2, -80, 80);
                 const rotZ = alpha % 360;
@@ -379,9 +386,9 @@ btn.addEventListener("click", async () => {
                 phoneWrapper.style.transform =
                     `rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
             }
-        });
+        };
 
-        window.addEventListener("devicemotion", (event) => {
+        motionHandler = (event) => {
             const acc = event.acceleration || {};
             axEl.textContent = acc.x?.toFixed(2) ?? "-";
             ayEl.textContent = acc.y?.toFixed(2) ?? "-";
@@ -396,14 +403,59 @@ btn.addEventListener("click", async () => {
             rAlphaEl.textContent = rot.alpha?.toFixed(2) ?? "-";
             rBetaEl.textContent  = rot.beta?.toFixed(2) ?? "-";
             rGammaEl.textContent = rot.gamma?.toFixed(2) ?? "-";
-        });
+        };
 
+        window.addEventListener("deviceorientation", orientationHandler);
+        window.addEventListener("devicemotion", motionHandler);
+
+        // 按鈕狀態切換
         btn.disabled = true;
+        btn.style.display = "none";
         btn.textContent = "感測器已啟動";
+        stopBtn.style.display = "block";
 
     } catch (err) {
         alert("錯誤：" + err);
     }
+});
+
+// 關閉感測器
+stopBtn.addEventListener("click", () => {
+    // 移除事件監聽器
+    if (orientationHandler) {
+        window.removeEventListener("deviceorientation", orientationHandler);
+        orientationHandler = null;
+    }
+    if (motionHandler) {
+        window.removeEventListener("devicemotion", motionHandler);
+        motionHandler = null;
+    }
+
+    // 清空顯示數值
+    alphaEl.textContent = "-";
+    betaEl.textContent  = "-";
+    gammaEl.textContent = "-";
+
+    axEl.textContent = "-";
+    ayEl.textContent = "-";
+    azEl.textContent = "-";
+
+    axgEl.textContent = "-";
+    aygEl.textContent = "-";
+    azgEl.textContent = "-";
+
+    rAlphaEl.textContent = "-";
+    rBetaEl.textContent  = "-";
+    rGammaEl.textContent = "-";
+
+    // 3D 手機回正
+    phoneWrapper.style.transform = "rotateX(0deg) rotateY(0deg) rotateZ(0deg)";
+
+    // 按鈕狀態切回「可再次啟動」
+    btn.disabled = false;
+    btn.style.display = "block";
+    btn.textContent = "啟動感測器";
+    stopBtn.style.display = "none";
 });
 
 // 角度限制，避免模型旋轉過頭
