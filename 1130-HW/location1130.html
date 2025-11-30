@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>位置服務 + 感測資料整合</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 "Microsoft JhengHei", sans-serif;
+    background: linear-gradient(135deg, #e0f2fe, #f5f5f5);
+    display: flex;
+    justify-content: center;
+  }
+
+  .wrapper {
+    width: 100%;
+    max-width: 540px;
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 24px 20px 32px;
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+  }
+
+  h2 {
+    margin-top: 0;
+    text-align: center;
+    font-size: 1.6rem;
+    letter-spacing: 0.08em;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #6b7280;
+    margin-top: 4px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    background: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
+    transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+  }
+
+  button:hover:not(:disabled) {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
+  }
+
+  button:disabled {
+    background: #9ca3af;
+    box-shadow: none;
+    cursor: default;
+  }
+
+  .btn-stop {
+    background: #dc2626;
+  }
+
+  .btn-stop:hover:not(:disabled) {
+    background: #b91c1c;
+  }
+
+  .status-tip {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 8px;
+  }
+
+  .card {
+    margin-top: 18px;
+    padding: 12px 14px 10px;
+    border-radius: 12px;
+    background: #f9fafb;
+    border-left: 4px solid #2563eb;
+  }
+
+  .card:nth-of-type(2) { border-left-color: #10b981; }
+  .card:nth-of-type(3) { border-left-color: #f97316; }
+  .card:nth-of-type(4) { border-left-color: #a855f7; }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+  }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.95rem;
+    margin: 2px 0;
+    align-items: baseline;
+  }
+
+  .label {
+    color: #4b5563;
+  }
+
+  .value {
+    font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+                  Consolas, "Liberation Mono", "Courier New", monospace;
+    background: #ffffff;
+    padding: 2px 8px;
+    border-radius: 999px;
+    min-width: 80px;
+    text-align: right;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  }
+
+  .map-link {
+    margin-top: 6px;
+    font-size: 0.85rem;
+  }
+
+  .map-link a {
+    color: #2563eb;
+    text-decoration: none;
+  }
+
+  .map-link a:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 480px) {
+    .wrapper { padding: 20px 14px 26px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+  <h2>位置服務 + 感測資料整合</h2>
+  <p class="subtitle">
+    按下「開始追蹤」，同時啟動 GPS 與感測器，觀察位置與姿態如何變化。
+  </p>
+
+  <div class="btn-row">
+    <button id="startBtn">開始追蹤</button>
+    <button id="stopBtn" class="btn-stop" disabled>停止追蹤</button>
+  </div>
+  <p class="status-tip">
+    ⚠ 部分瀏覽器需 HTTPS 或本機檔案，且須允許「位置」與「動作 / 方向」權限。
+  </p>
+
+  <!-- 位置資訊 -->
+  <div class="card">
+    <h3>目前位置（Geolocation）</h3>
+    <div class="row">
+      <span class="label">緯度 (lat)：</span>
+      <span id="lat" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">經度 (lng)：</span>
+      <span id="lng" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">精確度 (m)：</span>
+      <span id="acc" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">速度 (m/s)：</span>
+      <span id="spd" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">時間：</span>
+      <span id="time" class="value">-</span>
+    </div>
+    <p class="map-link">
+      地圖連結：<span id="mapLinkText">尚未取得位置</span>
+    </p>
+  </div>
+
+  <!-- 方向角度 -->
+  <div class="card">
+    <h3>DeviceOrientation（方向角度）</h3>
+    <div class="row">
+      <span class="label">Alpha (Z)：</span>
+      <span id="alpha" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">Beta (X)：</span>
+      <span id="beta" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">Gamma (Y)：</span>
+      <span id="gamma" class="value">-</span>
+    </div>
+  </div>
+
+  <!-- 加速度 -->
+  <div class="card">
+    <h3>DeviceMotion（加速度）</h3>
+    <div class="row">
+      <span class="label">ax：</span>
+      <span id="ax" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">ay：</span>
+      <span id="ay" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">az：</span>
+      <span id="az" class="value">-</span>
+    </div>
+  </div>
+
+  <!-- 含重力 + 陀螺儀 -->
+  <div class="card">
+    <h3>DeviceMotion（含重力）與陀螺儀</h3>
+    <div class="row">
+      <span class="label">ax_g：</span>
+      <span id="ax_g" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">ay_g：</span>
+      <span id="ay_g" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">az_g：</span>
+      <span id="az_g" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">α (deg/s)：</span>
+      <span id="rAlpha" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">β (deg/s)：</span>
+      <span id="rBeta" class="value">-</span>
+    </div>
+    <div class="row">
+      <span class="label">γ (deg/s)：</span>
+      <span id="rGamma" class="value">-</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn  = document.getElementById("stopBtn");
+
+  // 位置顯示元素
+  const latEl  = document.getElementById("lat");
+  const lngEl  = document.getElementById("lng");
+  const accEl  = document.getElementById("acc");
+  const spdEl  = document.getElementById("spd");
+  const timeEl = document.getElementById("time");
+  const mapLinkTextEl = document.getElementById("mapLinkText");
+
+  // 方向
+  const alphaEl = document.getElementById("alpha");
+  const betaEl  = document.getElementById("beta");
+  const gammaEl = document.getElementById("gamma");
+
+  // 加速度
+  const axEl = document.getElementById("ax");
+  const ayEl = document.getElementById("ay");
+  const azEl = document.getElementById("az");
+
+  // 含重力
+  const axgEl = document.getElementById("ax_g");
+  const aygEl = document.getElementById("ay_g");
+  const azgEl = document.getElementById("az_g");
+
+  // 陀螺儀
+  const rAlphaEl = document.getElementById("rAlpha");
+  const rBetaEl  = document.getElementById("rBeta");
+  const rGammaEl = document.getElementById("rGamma");
+
+  let watchId = null;             // geolocation watchPosition id
+  let orientationHandler = null;  // function reference
+  let motionHandler = null;
+
+  startBtn.addEventListener("click", async () => {
+    try {
+      // 檢查位置服務支援
+      if (!navigator.geolocation) {
+        alert("此裝置/瀏覽器不支援 Geolocation 位置服務。");
+        return;
+      }
+      if (!window.DeviceMotionEvent && !window.DeviceOrientationEvent) {
+        alert("此裝置不支援 Motion/Orientation 感測器。");
+        return;
+      }
+
+      // iOS 感測器權限（方向）
+      if (typeof DeviceOrientationEvent?.requestPermission === "function") {
+        const r1 = await DeviceOrientationEvent.requestPermission();
+        if (r1 !== "granted") {
+          alert("未允許讀取 DeviceOrientation。");
+          return;
+        }
+      }
+
+      // iOS 感測器權限（加速度）
+      if (typeof DeviceMotionEvent?.requestPermission === "function") {
+        const r2 = await DeviceMotionEvent.requestPermission();
+        if (r2 !== "granted") {
+          alert("未允許讀取 DeviceMotion。");
+          return;
+        }
+      }
+
+      // 啟動位置追蹤
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const crd = pos.coords;
+          latEl.textContent = crd.latitude.toFixed(6);
+          lngEl.textContent = crd.longitude.toFixed(6);
+          accEl.textContent = crd.accuracy?.toFixed(1) ?? "-";
+          spdEl.textContent = crd.speed != null ? crd.speed.toFixed(2) : "-";
+
+          const t = new Date(pos.timestamp);
+          const hh = String(t.getHours()).padStart(2, "0");
+          const mm = String(t.getMinutes()).padStart(2, "0");
+          const ss = String(t.getSeconds()).padStart(2, "0");
+          timeEl.textContent = `${t.getFullYear()}-${t.getMonth()+1}-${t.getDate()} ${hh}:${mm}:${ss}`;
+
+          const url = `https://www.google.com/maps?q=${crd.latitude},${crd.longitude}`;
+          mapLinkTextEl.innerHTML =
+            `<a href="${url}" target="_blank" rel="noopener">在 Google Maps 開啟目前位置</a>`;
+        },
+        (err) => {
+          alert("取得位置錯誤：" + err.message);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 10000
+        }
+      );
+
+      // 啟動方向感測
+      orientationHandler = (event) => {
+        const alpha = event.alpha ?? null;
+        const beta  = event.beta ?? null;
+        const gamma = event.gamma ?? null;
+
+        alphaEl.textContent = alpha?.toFixed(2) ?? "-";
+        betaEl.textContent  = beta?.toFixed(2) ?? "-";
+        gammaEl.textContent = gamma?.toFixed(2) ?? "-";
+      };
+
+      motionHandler = (event) => {
+        const acc = event.acceleration || {};
+        axEl.textContent = acc.x?.toFixed(2) ?? "-";
+        ayEl.textContent = acc.y?.toFixed(2) ?? "-";
+        azEl.textContent = acc.z?.toFixed(2) ?? "-";
+
+        const accG = event.accelerationIncludingGravity || {};
+        axgEl.textContent = accG.x?.toFixed(2) ?? "-";
+        aygEl.textContent = accG.y?.toFixed(2) ?? "-";
+        azgEl.textContent = accG.z?.toFixed(2) ?? "-";
+
+        const rot = event.rotationRate || {};
+        rAlphaEl.textContent = rot.alpha?.toFixed(2) ?? "-";
+        rBetaEl.textContent  = rot.beta?.toFixed(2) ?? "-";
+        rGammaEl.textContent = rot.gamma?.toFixed(2) ?? "-";
+      };
+
+      window.addEventListener("deviceorientation", orientationHandler);
+      window.addEventListener("devicemotion", motionHandler);
+
+      // UI 狀態
+      startBtn.disabled = true;
+      stopBtn.disabled  = false;
+
+    } catch (err) {
+      alert("錯誤：" + err);
+    }
+  });
+
+  stopBtn.addEventListener("click", () => {
+    // 停止位置追蹤
+    if (watchId != null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+
+    // 移除感測器監聽
+    if (orientationHandler) {
+      window.removeEventListener("deviceorientation", orientationHandler);
+      orientationHandler = null;
+    }
+
+    if (motionHandler) {
+      window.removeEventListener("devicemotion", motionHandler);
+      motionHandler = null;
+    }
+
+    // 數值恢復為 "-"
+    resetValues();
+
+    // 按鈕狀態
+    startBtn.disabled = false;
+    stopBtn.disabled  = true;
+  });
+
+  function resetValues() {
+    [latEl, lngEl, accEl, spdEl, timeEl,
+     alphaEl, betaEl, gammaEl,
+     axEl, ayEl, azEl,
+     axgEl, aygEl, azgEl,
+     rAlphaEl, rBetaEl, rGammaEl].forEach(el => el.textContent = "-");
+
+    mapLinkTextEl.textContent = "尚未取得位置";
+  }
+</script>
+
+</body>
+</html>
