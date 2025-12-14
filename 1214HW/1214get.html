@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>Fetch GET 1214作業</title>
+</head>
+<body>
+
+<h1>Fetch GET Demo</h1>
+<button onclick="getData()">送出 GET</button>
+
+<pre id="output"></pre>
+
+<script>
+    async function getData() {
+        // GET：資料放在 URL
+        let response = await fetch(
+            'https://httpcan.org/get?name=John&age=20'
+        );
+
+        let data = await response.json();
+
+        document.getElementById("output").textContent =
+            JSON.stringify(data, null, 2);
+    }
+</script>
+
+</body>
+</html>
