@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>一鍵求助（相機/定位/分享）</title>
+    <style>
+        :root { --gap: 12px; }
+        body{
+            margin:0; padding:16px;
+            font-family:"Microsoft JhengHei", system-ui, -apple-system, sans-serif;
+            background:#f4f6f8; color:#111;
+        }
+        .wrap{ max-width:780px; margin:0 auto; }
+        h1{ font-size:22px; margin:8px 0 12px; }
+        .card{
+            background:#fff; border:1px solid #e6e8eb; border-radius:12px;
+            padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.05);
+            margin-bottom:12px;
+        }
+        .row{ display:flex; gap:var(--gap); flex-wrap:wrap; align-items:center; }
+        .btn{
+            border:0; border-radius:10px;
+            padding:14px 16px; font-size:18px; font-weight:700;
+            cursor:pointer; flex:1; min-width:160px;
+        }
+        .primary{ background:#007bff; color:#fff; }
+        .danger{ background:#dc3545; color:#fff; }
+        .ghost{ background:#eef2f6; color:#111; }
+        .btn:disabled{ opacity:.55; cursor:not-allowed; }
+
+        video{
+            width:100%; max-height:360px;
+            background:#000; border-radius:12px;
+        }
+
+        .status{
+            display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+            font-size:15px;
+        }
+        .dot{
+            width:10px; height:10px; border-radius:50%;
+            background:#bbb; display:inline-block;
+            box-shadow:0 0 0 4px rgba(0,0,0,.03);
+        }
+        .dot.on{ background:#2ecc71; }
+        .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+        label{ font-size:14px; color:#333; display:block; margin-bottom:6px; }
+        input{
+            width:100%; box-sizing:border-box;
+            padding:12px 12px; font-size:16px;
+            border:1px solid #d7dde3; border-radius:10px;
+            outline:none;
+        }
+        textarea{
+            width:100%; min-height:120px; resize:vertical;
+            padding:12px; font-size:15px;
+            border:1px solid #d7dde3; border-radius:10px;
+            box-sizing:border-box;
+        }
+        .hint{ font-size:13px; color:#666; line-height:1.5; }
+        .small{ font-size:12px; color:#777; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>一鍵求助（相機＋定位＋分享）</h1>
+
+    <div class="card">
+        <div class="status">
+            <span class="dot" id="camDot"></span><span>相機/麥克風</span>
+            <span class="dot" id="gpsDot"></span><span>定位</span>
+            <span class="small">※ 只有你按下「開始」才會請求權限，離開頁面會自動停止。</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="row" style="margin-top:12px;">
+            <button class="btn primary" id="btnStart">開始（開啟相機/麥克風 + 取得定位）</button>
+            <button class="btn danger" id="btnStop" disabled>停止（關閉相機/麥克風）</button>
+        </div>
+        <div class="hint" style="margin-top:10px;">
+            小提醒：LINE 內建瀏覽器常常不給相機/麥克風，請用 Safari/Chrome 開啟。
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="row">
+            <div style="flex:2; min-width:240px;">
+                <label for="phone">緊急聯絡電話（可選）</label>
+                <input id="phone" inputmode="tel" placeholder="例如：0912345678" />
+                <div class="small">會儲存在本機（localStorage），不會上傳。</div>
+            </div>
+            <div style="flex:1; min-width:160px; align-self:flex-end;">
+                <button class="btn ghost" id="btnCall">一鍵撥打</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <label for="msg">求助訊息（可複製/分享）</label>
+        <textarea id="msg" placeholder="按下「開始」後會自動產生訊息"></textarea>
+
+        <div class="row" style="margin-top:12px;">
+            <button class="btn ghost" id="btnCopy">複製訊息</button>
+            <button class="btn primary" id="btnShare">手機分享</button>
+        </div>
+
+        <div class="hint" style="margin-top:10px;">
+            這個版本是「安全求助」：只會產生訊息與定位連結，不會在背景偷偷錄影或上傳。若要真正即時視訊給家人，需要使用視訊通話 App（LINE/FaceTime/Meet 等）。
+        </div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop  = document.getElementById('btnStop');
+    const btnCopy  = document.getElementById('btnCopy');
+    const btnShare = document.getElementById('btnShare');
+    const btnCall  = document.getElementById('btnCall');
+    const phoneInp = document.getElementById('phone');
+    const msgBox   = document.getElementById('msg');
+
+    const camDot = document.getElementById('camDot');
+    const gpsDot = document.getElementById('gpsDot');
+
+    let stream = null;
+    let lastPos = null; // {lat, lng, acc, alt}
+
+    // ---- utilities ----
+    function setCam(on){ camDot.classList.toggle('on', !!on); }
+    function setGps(on){ gpsDot.classList.toggle('on', !!on); }
+
+    function nowText(){
+        const d = new Date();
+        const pad = n => String(n).padStart(2,'0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function mapsLink(lat, lng){
+        // Google Maps 通用連結
+        return `https://www.google.com/maps?q=${encodeURIComponent(lat + "," + lng)}`;
+    }
+
+    function buildMessage(){
+        const t = nowText();
+        const phone = phoneInp.value.trim();
+        let text = `【一鍵求助】\n時間：${t}\n`;
+
+        if (lastPos){
+            const {lat, lng, acc, alt} = lastPos;
+            text += `位置：${lat.toFixed(6)}, ${lng.toFixed(6)}\n`;
+            text += `地圖：${mapsLink(lat, lng)}\n`;
+            if (Number.isFinite(acc)) text += `定位誤差：約 ${Math.round(acc)} 公尺\n`;
+            if (Number.isFinite(alt)) text += `海拔：約 ${Math.round(alt)} 公尺\n`;
+        } else {
+            text += `位置：尚未取得（請按「開始」並允許定位）\n`;
+        }
+
+        text += `\n我需要協助，請與我聯絡。`;
+        if (phone) text += `\n（可回撥：${phone}）`;
+
+        msgBox.value = text;
+        return text;
+    }
+
+    async function copyText(text){
+        try{
+            await navigator.clipboard.writeText(text);
+            alert('已複製到剪貼簿');
+        }catch(e){
+            // fallback
+            msgBox.focus();
+            msgBox.select();
+            document.execCommand('copy');
+            alert('已嘗試複製（若失敗請長按手動複製）');
+        }
+    }
+
+    function stopStream(){
+        if (stream){
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+        }
+        video.srcObject = null;
+        setCam(false);
+        btnStop.disabled = true;
+    }
+
+    async function startAll(){
+        // 1) camera/mic
+        try{
+            stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+            video.srcObject = stream;
+            setCam(true);
+            btnStop.disabled = false;
+        }catch(err){
+            stopStream();
+            setCam(false);
+            alert('相機/麥克風無法使用：' + (err?.name || err));
+        }
+
+        // 2) geolocation (可獨立成功/失敗)
+        setGps(false);
+        lastPos = null;
+        if (!('geolocation' in navigator)){
+            buildMessage();
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const c = pos.coords;
+                lastPos = {
+                    lat: c.latitude,
+                    lng: c.longitude,
+                    acc: c.accuracy,
+                    alt: (typeof c.altitude === 'number') ? c.altitude : NaN
+                };
+                setGps(true);
+                buildMessage();
+            },
+            (err) => {
+                setGps(false);
+                buildMessage();
+                // 不用一直跳警告，避免嚇到長輩
+                console.warn('Geolocation error:', err);
+            },
+            { enableHighAccuracy:true, timeout:10000, maximumAge:30000 }
+        );
+
+        // 先生成一次（即便定位還在等）
+        buildMessage();
+    }
+
+    // ---- events ----
+    btnStart.addEventListener('click', async () => {
+        btnStart.disabled = true;
+        try{
+            await startAll();
+        } finally {
+            btnStart.disabled = false;
+        }
+    });
+
+    btnStop.addEventListener('click', () => {
+        stopStream();
+        buildMessage();
+    });
+
+    btnCopy.addEventListener('click', async () => {
+        const text = msgBox.value.trim() || buildMessage();
+        await copyText(text);
+    });
+
+    btnShare.addEventListener('click', async () => {
+        const text = msgBox.value.trim() || buildMessage();
+        if (navigator.share){
+            try{
+                await navigator.share({ title: '一鍵求助', text });
+            }catch(e){
+                // 使用者取消分享很常見，不用當錯誤
+            }
+        } else {
+            await copyText(text);
+        }
+    });
+
+    btnCall.addEventListener('click', () => {
+        const phone = phoneInp.value.trim();
+        if (!phone){
+            alert('請先輸入緊急聯絡電話');
+            phoneInp.focus();
+            return;
+        }
+        // 一鍵撥打
+        location.href = `tel:${encodeURIComponent(phone)}`;
+    });
+
+    // 自動停用：離開頁面/切背景時，確保相機關掉
+    window.addEventListener('pagehide', stopStream);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopStream();
+    });
+
+    // 記住電話（本機）
+    const KEY = 'sos_phone';
+    phoneInp.value = localStorage.getItem(KEY) || '';
+    phoneInp.addEventListener('input', () => {
+        localStorage.setItem(KEY, phoneInp.value.trim());
+        buildMessage();
+    });
+
+    // 初始訊息
+    buildMessage();
+</script>
+</body>
+</html>
