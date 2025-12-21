@@ -1,457 +1,177 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>一鍵求助（拍照＋定位＋分享）</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>安全一鍵求助（生物辨識）</title>
+
     <style>
         body{
-            margin:0; padding:16px;
-            font-family:"Microsoft JhengHei", system-ui, -apple-system, sans-serif;
-            background:#f4f6f8; color:#111;
+            margin:0; padding:20px;
+            font-family:"Microsoft JhengHei", system-ui, sans-serif;
+            background:#f4f6f8;
         }
-        .wrap{ max-width:860px; margin:0 auto; }
-        h1{ font-size:22px; margin:8px 0 12px; }
-        .card{
-            background:#fff; border:1px solid #e6e8eb; border-radius:12px;
-            padding:14px; box-shadow:0 1px 3px rgba(0,0,0,.05);
-            margin-bottom:12px;
+        .wrap{max-width:520px;margin:auto;}
+        h1{text-align:center;}
+        button{
+            width:100%;
+            padding:18px;
+            font-size:22px;
+            font-weight:bold;
+            border:none;
+            border-radius:14px;
+            cursor:pointer;
         }
-        .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-        .btn{
-            border:0; border-radius:10px;
-            padding:14px 16px; font-size:18px; font-weight:700;
-            cursor:pointer; flex:1; min-width:160px;
-        }
-        .primary{ background:#007bff; color:#fff; }
-        .danger{ background:#dc3545; color:#fff; }
-        .ghost{ background:#eef2f6; color:#111; }
-        .btn:disabled{ opacity:.55; cursor:not-allowed; }
-
-        video, img.preview{
-            width:100%; max-height:380px;
-            background:#000; border-radius:12px;
-            display:block;
-        }
-
-        .status{
-            display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-            font-size:14px; line-height:1.5;
-        }
-        .dot{
-            width:10px; height:10px; border-radius:50%;
-            background:#bbb; display:inline-block;
-            box-shadow:0 0 0 4px rgba(0,0,0,.03);
-        }
-        .dot.on{ background:#2ecc71; }
-        .small{ font-size:12px; color:#666; }
-        .hint{ font-size:13px; color:#666; line-height:1.55; }
-
-        label{ font-size:14px; color:#333; display:block; margin-bottom:6px; }
-        input, textarea{
-            width:100%; box-sizing:border-box;
-            padding:12px; font-size:16px;
-            border:1px solid #d7dde3; border-radius:10px;
-            outline:none;
-        }
-        textarea{ min-height:120px; resize:vertical; }
-        .kpi{ font-size:13px; color:#333; }
-        .kpi b{ font-size:14px; }
-        .badge{
-            display:inline-block;
-            padding:3px 8px; border-radius:999px;
-            background:#eef2f6; font-size:12px; color:#333;
-        }
+        #sosBtn{background:#dc3545;color:#fff;}
+        #status{margin-top:14px;font-size:14px;color:#333;text-align:center;}
+        video{display:none;}
+        canvas{display:none;}
+        .small{font-size:12px;color:#666;text-align:center;margin-top:8px;}
     </style>
 </head>
+
 <body>
 <div class="wrap">
-    <h1>一鍵求助（相機＋定位＋拍照＋分享）</h1>
+    <h1>🚨 緊急求助</h1>
 
-    <div class="card">
-        <div class="status">
-            <span class="dot" id="camDot"></span><span>相機/麥克風</span>
-            <span class="dot" id="gpsDot"></span><span>定位</span>
-            <span class="badge" id="envBadge">檢測中…</span>
-            <span class="small">※ 需使用者點擊才會請求權限；離開頁面會自動停止相機/麥克風。</span>
-        </div>
-        <div class="small" id="envTip" style="margin-top:8px;"></div>
-    </div>
+    <button id="sosBtn">一鍵求助</button>
 
-    <div class="card">
-        <video id="video" autoplay playsinline muted></video>
-        <img id="photoPreview" class="preview" alt="拍照預覽" style="display:none; margin-top:10px;" />
-        <canvas id="canvas" style="display:none;"></canvas>
+    <div id="status">待命中</div>
+    <div class="small">需通過生物辨識，資料不會自動傳送</div>
 
-        <div class="row" style="margin-top:12px;">
-            <button class="btn primary" id="btnStart">開始（相機/麥克風 + 定位）</button>
-            <button class="btn danger" id="btnStop" disabled>停止（關閉相機/麥克風）</button>
-        </div>
-
-        <div class="row" style="margin-top:12px;">
-            <button class="btn ghost" id="btnSnap" disabled>拍照（抓取當前畫面）</button>
-            <button class="btn primary" id="btnShareSOS" disabled>一鍵分享（照片＋求救訊息）</button>
-        </div>
-
-        <div class="hint" style="margin-top:10px;">
-            提醒：LINE 內建瀏覽器常會封鎖相機/麥克風，請用右上角選單「用外部瀏覽器開啟」改用 Safari/Chrome。
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="row">
-            <div style="flex:2; min-width:240px;">
-                <label for="phone">緊急聯絡電話（可選）</label>
-                <input id="phone" inputmode="tel" placeholder="例如：0912345678" />
-                <div class="small">只儲存在本機（localStorage），不會上傳。</div>
-            </div>
-            <div style="flex:1; min-width:160px; align-self:flex-end;">
-                <button class="btn ghost" id="btnCall">一鍵撥打</button>
-            </div>
-        </div>
-        <div class="row" style="margin-top:10px;">
-            <div class="kpi" style="flex:1; min-width:200px;">定位：<b id="posText">尚未取得</b></div>
-            <div class="kpi" style="flex:1; min-width:200px;">誤差：<b id="accText">—</b></div>
-            <div class="kpi" style="flex:1; min-width:200px;">海拔：<b id="altText">—</b></div>
-        </div>
-    </div>
-
-    <div class="card">
-        <label for="msg">求助訊息（可複製/分享）</label>
-        <textarea id="msg" placeholder="按下「開始」後會自動產生訊息"></textarea>
-
-        <div class="row" style="margin-top:12px;">
-            <button class="btn ghost" id="btnCopy">複製訊息</button>
-            <button class="btn ghost" id="btnShareText">只分享文字（沒有照片時也可）</button>
-        </div>
-
-        <div class="hint" style="margin-top:10px;">
-            這個版本的設計目的：讓長輩「自己按下」才分享資訊。網頁無法直接指定 LINE 收件人自動送出，必須由使用者在分享面板中選擇要送給誰（這是安全機制）。
-        </div>
-    </div>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
 </div>
 
 <script>
-    // ---------- DOM ----------
+    const sosBtn = document.getElementById('sosBtn');
+    const statusEl = document.getElementById('status');
     const video = document.getElementById('video');
-    const photoPreview = document.getElementById('photoPreview');
     const canvas = document.getElementById('canvas');
 
-    const btnStart = document.getElementById('btnStart');
-    const btnStop  = document.getElementById('btnStop');
-    const btnSnap  = document.getElementById('btnSnap');
-    const btnShareSOS = document.getElementById('btnShareSOS');
-
-    const btnCopy = document.getElementById('btnCopy');
-    const btnShareText = document.getElementById('btnShareText');
-
-    const btnCall = document.getElementById('btnCall');
-    const phoneInp = document.getElementById('phone');
-    const msgBox   = document.getElementById('msg');
-
-    const camDot = document.getElementById('camDot');
-    const gpsDot = document.getElementById('gpsDot');
-
-    const posText = document.getElementById('posText');
-    const accText = document.getElementById('accText');
-    const altText = document.getElementById('altText');
-
-    const envBadge = document.getElementById('envBadge');
-    const envTip = document.getElementById('envTip');
-
-    // ---------- state ----------
     let stream = null;
-    let lastPos = null;     // {lat, lng, acc, alt}
-    let photoFile = null;   // File
-    let photoBlobUrl = null;
+    let photoFile = null;
+    let lastPos = null;
 
-    // ---------- helpers ----------
-    function setCam(on){ camDot.classList.toggle('on', !!on); }
-    function setGps(on){ gpsDot.classList.toggle('on', !!on); }
-
-    function pad(n){ return String(n).padStart(2,'0'); }
-    function nowText(){
-        const d = new Date();
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-    function mapsLink(lat, lng){
-        return `https://www.google.com/maps?q=${encodeURIComponent(lat + "," + lng)}`;
-    }
-
-    function setPosUI(){
-        if (!lastPos){
-            posText.textContent = '尚未取得';
-            accText.textContent = '—';
-            altText.textContent = '—';
-            return;
+    /* ---------- 生物辨識（WebAuthn / Passkey）---------- */
+    async function biometricAuth(){
+        if (!window.PublicKeyCredential) {
+            throw new Error('此裝置不支援生物辨識');
         }
-        posText.textContent = `${lastPos.lat.toFixed(6)}, ${lastPos.lng.toFixed(6)}`;
-        accText.textContent = Number.isFinite(lastPos.acc) ? `${Math.round(lastPos.acc)} 公尺` : '—';
-        altText.textContent = Number.isFinite(lastPos.alt) ? `${Math.round(lastPos.alt)} 公尺` : '—';
+        const challenge = new Uint8Array(32);
+        crypto.getRandomValues(challenge);
+
+        await navigator.credentials.get({
+            publicKey:{
+                challenge,
+                userVerification:'required',
+                timeout:60000
+            }
+        });
     }
 
-    function buildMessage(){
-        const t = nowText();
-        const phone = phoneInp.value.trim();
-
-        let text = `【緊急求救】\n時間：${t}\n`;
-
-        if (lastPos){
-            const {lat, lng, acc, alt} = lastPos;
-            text += `位置：${lat.toFixed(6)}, ${lng.toFixed(6)}\n`;
-            text += `地圖：${mapsLink(lat, lng)}\n`;
-            if (Number.isFinite(acc)) text += `定位誤差：約 ${Math.round(acc)} 公尺\n`;
-            if (Number.isFinite(alt)) text += `海拔：約 ${Math.round(alt)} 公尺\n`;
-        } else {
-            text += `位置：尚未取得（請按「開始」並允許定位）\n`;
+    /* ---------- 相機 ---------- */
+    async function startCamera(){
+        if (!stream){
+            stream = await navigator.mediaDevices.getUserMedia({video:true});
+            video.srcObject = stream;
         }
-
-        text += `\n我需要協助，請盡快與我聯絡。`;
-        if (phone) text += `\n（可回撥：${phone}）`;
-
-        msgBox.value = text;
-        return text;
-    }
-
-    async function copyText(text){
-        try{
-            await navigator.clipboard.writeText(text);
-            alert('已複製到剪貼簿');
-        }catch(e){
-            // fallback
-            msgBox.focus();
-            msgBox.select();
-            document.execCommand('copy');
-            alert('已嘗試複製（若失敗請長按手動複製）');
-        }
-    }
-
-    function cleanupPhoto(){
-        photoFile = null;
-        btnShareSOS.disabled = true;
-
-        if (photoBlobUrl){
-            URL.revokeObjectURL(photoBlobUrl);
-            photoBlobUrl = null;
-        }
-        photoPreview.style.display = 'none';
-        photoPreview.removeAttribute('src');
-    }
-
-    function stopStream(){
-        if (stream){
-            stream.getTracks().forEach(t => t.stop());
-            stream = null;
-        }
-        video.srcObject = null;
-        setCam(false);
-        btnStop.disabled = true;
-        btnSnap.disabled = true;
-        cleanupPhoto();
-    }
-
-    function detectEnvironment(){
-        const ua = navigator.userAgent || '';
-        const isLine = /Line/i.test(ua);
-        const isIOS = /iPhone|iPad|iPod/i.test(ua);
-        const isAndroid = /Android/i.test(ua);
-
-        if (isLine){
-            envBadge.textContent = 'LINE 內建瀏覽器';
-            envTip.textContent = 'LINE 內建瀏覽器可能無法使用相機/麥克風，請改用「外部瀏覽器開啟」(Safari/Chrome)。';
-        } else if (isIOS){
-            envBadge.textContent = 'iOS Safari/瀏覽器';
-            envTip.textContent = '若曾按過拒絕，相機/麥克風不會再跳詢問：請到 Safari 網站設定改成允許。';
-        } else if (isAndroid){
-            envBadge.textContent = 'Android 瀏覽器';
-            envTip.textContent = '建議使用 Chrome；若沒跳權限，檢查網址列鎖頭 → 權限 → 允許相機/麥克風。';
-        } else {
-            envBadge.textContent = '一般瀏覽器';
-            envTip.textContent = '請使用 HTTPS 網址（GitHub Pages 可）。';
-        }
-    }
-
-    // ---------- actions ----------
-    async function startCameraMic(){
-        // 需要 HTTPS 或 localhost；GitHub Pages OK
-        const s = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
-        stream = s;
-        video.srcObject = s;
-        setCam(true);
-
-        btnStop.disabled = false;
-        btnSnap.disabled = false;
-    }
-
-    function requestLocation(){
-        setGps(false);
-        lastPos = null;
-        setPosUI();
-
-        if (!('geolocation' in navigator)){
-            buildMessage();
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const c = pos.coords;
-                lastPos = {
-                    lat: c.latitude,
-                    lng: c.longitude,
-                    acc: c.accuracy,
-                    alt: (typeof c.altitude === 'number') ? c.altitude : NaN
-                };
-                setGps(true);
-                setPosUI();
-                buildMessage();
-            },
-            () => {
-                setGps(false);
-                setPosUI();
-                buildMessage();
-            },
-            { enableHighAccuracy:true, timeout:10000, maximumAge:30000 }
-        );
     }
 
     function takePhoto(){
-        if (!video.srcObject){
-            alert('請先按「開始」啟用相機');
-            return;
-        }
-
         const w = video.videoWidth || 1280;
         const h = video.videoHeight || 720;
-
         canvas.width = w;
         canvas.height = h;
+        canvas.getContext('2d').drawImage(video,0,0,w,h);
 
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, w, h);
-
-        canvas.toBlob((blob) => {
-            if (!blob) {
-                alert('拍照失敗，請再試一次');
-                return;
-            }
-
-            cleanupPhoto(); // 清掉舊的
-            photoFile = new File([blob], 'sos.jpg', { type:'image/jpeg' });
-
-            photoBlobUrl = URL.createObjectURL(blob);
-            photoPreview.src = photoBlobUrl;
-            photoPreview.style.display = 'block';
-
-            btnShareSOS.disabled = false;
-            alert('已拍照完成，可以按「一鍵分享」');
-        }, 'image/jpeg', 0.92);
+        return new Promise(res=>{
+            canvas.toBlob(blob=>{
+                photoFile = new File([blob],'sos.jpg',{type:'image/jpeg'});
+                res();
+            },'image/jpeg',0.9);
+        });
     }
 
-    async function shareSOS(withPhoto){
-        const text = msgBox.value.trim() || buildMessage();
+    /* ---------- 定位 ---------- */
+    function getLocation(){
+        return new Promise(resolve=>{
+            if (!navigator.geolocation) return resolve(null);
+            navigator.geolocation.getCurrentPosition(pos=>{
+                lastPos = pos.coords;
+                resolve(lastPos);
+            },()=>resolve(null),{
+                enableHighAccuracy:true,
+                timeout:8000
+            });
+        });
+    }
 
-        if (!navigator.share){
-            await copyText(text);
-            alert('此瀏覽器不支援一鍵分享，已改為複製訊息。可貼到 LINE 傳送。');
-            return;
+    /* ---------- 訊息 ---------- */
+    function buildMessage(){
+        let msg = `【緊急求救】\n時間：${new Date().toLocaleString()}\n`;
+        if (lastPos){
+            msg += `位置：https://www.google.com/maps?q=${lastPos.latitude},${lastPos.longitude}\n`;
+            msg += `誤差：約 ${Math.round(lastPos.accuracy)} 公尺\n`;
+        } else {
+            msg += `位置：未取得\n`;
         }
+        msg += `\n我需要協助，請盡快聯絡我。`;
+        return msg;
+    }
 
+    /* ---------- 主流程 ---------- */
+    sosBtn.onclick = async ()=>{
         try{
-            if (withPhoto && photoFile && navigator.canShare && navigator.canShare({ files:[photoFile] })){
-                await navigator.share({ title:'緊急求救', text, files:[photoFile] });
+            sosBtn.disabled = true;
+            statusEl.textContent = '🔐 生物辨識中…';
+
+            // ① 生物辨識
+            await biometricAuth();
+
+            statusEl.textContent = '📷 啟用相機…';
+            await startCamera();
+
+            statusEl.textContent = '📍 取得定位…';
+            await getLocation();
+
+            statusEl.textContent = '📸 拍照中…';
+            await takePhoto();
+
+            const text = buildMessage();
+
+            statusEl.textContent = '📤 準備分享…';
+
+            if (navigator.share && navigator.canShare({files:[photoFile]})){
+                await navigator.share({
+                    title:'緊急求助',
+                    text,
+                    files:[photoFile]
+                });
             } else {
-                // iOS 某些情況或瀏覽器不支援 files，仍可分享文字
-                await navigator.share({ title:'緊急求救', text });
-                if (withPhoto && photoFile){
-                    alert('此瀏覽器可能不支援「帶照片分享」，已先分享文字；你也可以截圖或改用 Android Chrome 分享照片。');
-                }
+                await navigator.share({title:'緊急求助', text});
             }
+
+            statusEl.textContent = '✅ 求助流程完成';
+
         }catch(e){
-            // 使用者取消分享很常見，不視為錯誤
-            console.log(e);
+            statusEl.textContent = '❌ 已取消或失敗';
+        }finally{
+            sosBtn.disabled = false;
+        }
+    };
+
+    /* ---------- 離開頁面自動關 ---------- */
+    function stopAll(){
+        if (stream){
+            stream.getTracks().forEach(t=>t.stop());
+            stream=null;
         }
     }
-
-    // ---------- wiring ----------
-    btnStart.addEventListener('click', async () => {
-        btnStart.disabled = true;
-        try{
-            cleanupPhoto(); // 每次開始前清掉舊照片
-            buildMessage();
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-                alert('此瀏覽器不支援相機/麥克風功能');
-                return;
-            }
-
-            try{
-                await startCameraMic();
-            }catch(err){
-                stopStream();
-                alert('相機/麥克風無法使用：' + (err?.name || err));
-                return;
-            }
-
-            requestLocation();
-            buildMessage();
-        } finally {
-            btnStart.disabled = false;
-        }
+    window.addEventListener('pagehide',stopAll);
+    document.addEventListener('visibilitychange',()=>{
+        if(document.hidden) stopAll();
     });
-
-    btnStop.addEventListener('click', () => {
-        stopStream();
-        buildMessage();
-    });
-
-    btnSnap.addEventListener('click', () => {
-        takePhoto();
-    });
-
-    btnShareSOS.addEventListener('click', async () => {
-        await shareSOS(true);
-    });
-
-    btnShareText.addEventListener('click', async () => {
-        await shareSOS(false);
-    });
-
-    btnCopy.addEventListener('click', async () => {
-        const text = msgBox.value.trim() || buildMessage();
-        await copyText(text);
-    });
-
-    btnCall.addEventListener('click', () => {
-        const phone = phoneInp.value.trim();
-        if (!phone){
-            alert('請先輸入緊急聯絡電話');
-            phoneInp.focus();
-            return;
-        }
-        location.href = `tel:${encodeURIComponent(phone)}`;
-    });
-
-    // 自動停用：離開頁面/切背景時，確保相機關掉
-    window.addEventListener('pagehide', stopStream);
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopStream();
-    });
-
-    // 記住電話（本機）
-    const KEY = 'sos_phone';
-    phoneInp.value = localStorage.getItem(KEY) || '';
-    phoneInp.addEventListener('input', () => {
-        localStorage.setItem(KEY, phoneInp.value.trim());
-        buildMessage();
-    });
-
-    // init
-    detectEnvironment();
-    setCam(false);
-    setGps(false);
-    setPosUI();
-    buildMessage();
 </script>
 </body>
 </html>
