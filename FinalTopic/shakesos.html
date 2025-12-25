@@ -1,86 +1,110 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>搖一搖緊急求助</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Shake SOS</title>
     <style>
-        body{font-family:sans-serif;padding:20px}
+        body{font-family:Arial,"Microsoft JhengHei",sans-serif;padding:20px;line-height:1.8}
         button,a{padding:12px 16px;font-size:16px}
-        #call{
-            display:none;
-            margin-top:20px;
-            background:#d60000;
-            color:#fff;
-            text-decoration:none
-        }
-        #info{
-            margin-top:15px;
-            font-size:15px;
-            color:#b00000;
-        }
-        #value{
-            margin-top:10px;
-            font-size:16px;
-        }
+        #value{margin-top:12px;font-size:18px}
+        #rule{margin-top:10px;color:#555}
+        #alert{display:none;margin-top:10px;color:#b00000;font-weight:700}
+        #call{display:none;margin-top:16px;background:#d60000;color:#fff;text-decoration:none;display:inline-block}
     </style>
 </head>
 <body>
 
-<button id="start">開始偵測</button>
+<h2>Shake SOS 緊急求助</h2>
+<p>按下按鈕授權後開始偵測，當偵測到不明劇烈晃動時，將顯示緊急聯絡按鈕。</p>
 
-<div id="value">目前晃動強度：0</div>
+<button id="btn">取得感測器授權並開始</button>
 
-<div id="info">
-    偵測到不明劇烈晃動，如有意外請協助撥打緊急連絡人
-</div>
+<div id="value">目前晃動強度：-</div>
+
+<div id="rule">※ 晃動幅度達 <strong>15</strong> 以上會被偵測為不明劇烈晃動</div>
+
+<div id="alert">🚨 偵測到不明劇烈晃動，如有意外請協助撥打緊急連絡人</div>
 
 <a id="call" href="tel:0909032711">📞 撥打緊急聯絡人</a>
 
 <script>
-    const THRESHOLD = 18;
+    const btn = document.getElementById("btn");
+    const valueEl = document.getElementById("value");
+    const ruleEl  = document.getElementById("rule");
+    const alertEl = document.getElementById("alert");
+    const callEl  = document.getElementById("call");
+
+    const THRESHOLD = 15; // 觸發門檻
+    const NEED_HITS = 2;  // 連續幾次超過門檻才觸發（避免誤判）
     let hit = 0;
     let started = false;
 
-    document.getElementById("start").addEventListener("click", async () => {
-
+    btn.addEventListener("click", async () => {
         if (started) return;
-        started = true;
 
-        // iOS 授權
-        if (
-            typeof DeviceMotionEvent !== "undefined" &&
-            typeof DeviceMotionEvent.requestPermission === "function"
-        ) {
-            const permission = await DeviceMotionEvent.requestPermission();
-            if (permission !== "granted") {
-                alert("未允許動作與方向感測");
+        try {
+            // 支援性檢查
+            if (!window.DeviceMotionEvent && !window.DeviceOrientationEvent) {
+                alert("此裝置不支援 Motion/Orientation 感測器");
                 return;
             }
-        }
 
-        window.addEventListener("devicemotion", handleMotion, { passive: true });
+            // ===== iOS：Orientation 授權（有些版本需要）=====
+            if (typeof DeviceOrientationEvent?.requestPermission === "function") {
+                const r1 = await DeviceOrientationEvent.requestPermission();
+                if (r1 !== "granted") {
+                    alert("未允許讀取 DeviceOrientation");
+                    return;
+                }
+            }
+
+            // ===== iOS：Motion 授權 =====
+            if (typeof DeviceMotionEvent?.requestPermission === "function") {
+                const r2 = await DeviceMotionEvent.requestPermission();
+                if (r2 !== "granted") {
+                    alert("未允許讀取 DeviceMotion");
+                    return;
+                }
+            }
+
+            // 啟動偵測
+            window.addEventListener("devicemotion", onMotion, { passive: true });
+
+            started = true;
+            btn.disabled = true;
+            btn.textContent = "感測器已啟動";
+        } catch (err) {
+            alert("錯誤：" + err);
+        }
     });
 
-    function handleMotion(e) {
-        const a = e.accelerationIncludingGravity || e.acceleration;
+    function onMotion(event) {
+        // iOS 常見：acceleration 為 null，所以優先用含重力
+        const a = event.accelerationIncludingGravity || event.acceleration;
         if (!a) return;
 
-        const x = a.x || 0;
-        const y = a.y || 0;
-        const z = a.z || 0;
+        const x = a.x ?? 0;
+        const y = a.y ?? 0;
+        const z = a.z ?? 0;
 
         const mag = Math.sqrt(x*x + y*y + z*z);
 
-        // 即時顯示數值
-        document.getElementById("value").textContent =
-            "目前晃動強度：" + mag.toFixed(2);
+        // 顯示即時晃動強度
+        valueEl.textContent = "目前晃動強度：" + mag.toFixed(2);
 
-        if (mag > THRESHOLD) {
+        // 觸發條件：連續超標
+        if (mag >= THRESHOLD) {
             hit++;
-            if (hit >= 2) {
-                document.getElementById("call").style.display = "inline-block";
+            if (hit >= NEED_HITS) {
+                // 觸發後：顯示警示與撥號、隱藏規則
+                alertEl.style.display = "block";
+                callEl.style.display = "inline-block";
+                ruleEl.style.display = "none";
             }
+        } else {
+            // 未超標時慢慢降 hit，降低誤判
+            hit = Math.max(0, hit - 1);
         }
     }
 </script>
