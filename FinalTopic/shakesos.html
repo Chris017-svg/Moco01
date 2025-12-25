@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>搖一搖緊急求助</title>
+    <style>
+        body{font-family:sans-serif;padding:20px}
+        button{padding:12px 16px;font-size:16px}
+        #call{display:none;margin-top:20px;background:#d60000;color:#fff}
+    </style>
+</head>
+<body>
+
+<button id="start">開始偵測</button>
+<a id="call" href="tel:0909032711">📞 撥打緊急聯絡人</a>
+
+<script>
+    const THRESHOLD = 18;   // 晃動門檻
+    let hit = 0;
+
+    document.getElementById("start").onclick = async () => {
+        if (DeviceMotionEvent.requestPermission) {
+            const p = await DeviceMotionEvent.requestPermission();
+            if (p !== "granted") return;
+        }
+
+        window.addEventListener("devicemotion", e => {
+            const a = e.acceleration || e.accelerationIncludingGravity;
+            if (!a) return;
+
+            const mag = Math.sqrt(
+                (a.x||0)**2 + (a.y||0)**2 + (a.z||0)**2
+            );
+
+            if (mag > THRESHOLD) {
+                hit++;
+                if (hit >= 2) {
+                    document.getElementById("call").style.display = "block";
+                }
+            }
+        });
+    };
+</script>
+
+</body>
+</html>
