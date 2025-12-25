@@ -10,7 +10,7 @@
         #value{margin-top:12px;font-size:18px}
         #rule{margin-top:10px;color:#555}
         #alert{display:none;margin-top:10px;color:#b00000;font-weight:700}
-        #call{display:none;margin-top:16px;background:#d60000;color:#fff;text-decoration:none;display:inline-block}
+        #call{display:none;margin-top:16px;background:#d60000;color:#fff;text-decoration:none}
     </style>
 </head>
 <body>
@@ -29,83 +29,52 @@
 <a id="call" href="tel:">📞 撥打緊急聯絡人</a>
 
 <script>
-    const btn = document.getElementById("btn");
-    const valueEl = document.getElementById("value");
-    const ruleEl  = document.getElementById("rule");
-    const alertEl = document.getElementById("alert");
-    const callEl  = document.getElementById("call");
+    const btn=document.getElementById("btn");
+    const valueEl=document.getElementById("value");
+    const ruleEl=document.getElementById("rule");
+    const alertEl=document.getElementById("alert");
+    const callEl=document.getElementById("call");
 
-    const THRESHOLD = 15; // 觸發門檻
-    const NEED_HITS = 2;  // 連續幾次超過門檻才觸發（避免誤判）
-    let hit = 0;
-    let started = false;
+    const THRESHOLD=15,NEED_HITS=2;
+    let hit=0,started=false;
 
-    btn.addEventListener("click", async () => {
-        if (started) return;
+    btn.onclick=async()=>{
+        if(started)return;
 
-        try {
-            // 支援性檢查
-            if (!window.DeviceMotionEvent && !window.DeviceOrientationEvent) {
-                alert("此裝置不支援 Motion/Orientation 感測器");
-                return;
-            }
-
-            // ===== iOS：Orientation 授權（有些版本需要）=====
-            if (typeof DeviceOrientationEvent?.requestPermission === "function") {
-                const r1 = await DeviceOrientationEvent.requestPermission();
-                if (r1 !== "granted") {
-                    alert("未允許讀取 DeviceOrientation");
-                    return;
-                }
-            }
-
-            // ===== iOS：Motion 授權 =====
-            if (typeof DeviceMotionEvent?.requestPermission === "function") {
-                const r2 = await DeviceMotionEvent.requestPermission();
-                if (r2 !== "granted") {
-                    alert("未允許讀取 DeviceMotion");
-                    return;
-                }
-            }
-
-            // 啟動偵測
-            window.addEventListener("devicemotion", onMotion, { passive: true });
-
-            started = true;
-            btn.disabled = true;
-            btn.textContent = "感測器已啟動";
-        } catch (err) {
-            alert("錯誤：" + err);
+        if(!window.DeviceMotionEvent&&!window.DeviceOrientationEvent){
+            alert("此裝置不支援感測器");return;
         }
-    });
 
-    function onMotion(event) {
-        // iOS 常見：acceleration 為 null，所以優先用含重力
-        const a = event.accelerationIncludingGravity || event.acceleration;
-        if (!a) return;
-
-        const x = a.x ?? 0;
-        const y = a.y ?? 0;
-        const z = a.z ?? 0;
-
-        const mag = Math.sqrt(x*x + y*y + z*z);
-
-        // 顯示即時晃動強度
-        valueEl.textContent = "目前晃動強度：" + mag.toFixed(2);
-
-        // 觸發條件：連續超標
-        if (mag >= THRESHOLD) {
-            hit++;
-            if (hit >= NEED_HITS) {
-                // 觸發後：顯示警示與撥號、隱藏規則
-                alertEl.style.display = "block";
-                callEl.style.display = "inline-block";
-                ruleEl.style.display = "none";
-            }
-        } else {
-            // 未超標時慢慢降 hit，降低誤判
-            hit = Math.max(0, hit - 1);
+        if(typeof DeviceOrientationEvent?.requestPermission==="function"){
+            const r=await DeviceOrientationEvent.requestPermission();
+            if(r!=="granted")return;
         }
+
+        if(typeof DeviceMotionEvent?.requestPermission==="function"){
+            const r=await DeviceMotionEvent.requestPermission();
+            if(r!=="granted")return;
+        }
+
+        window.addEventListener("devicemotion",onMotion,{passive:true});
+        started=true;
+        btn.disabled=true;
+        btn.textContent="感測器已啟動";
+    };
+
+    function onMotion(e){
+        const a=e.accelerationIncludingGravity||e.acceleration;
+        if(!a)return;
+
+        const mag=Math.sqrt((a.x||0)**2+(a.y||0)**2+(a.z||0)**2);
+        valueEl.textContent="目前晃動強度："+mag.toFixed(2);
+
+        if(mag>=THRESHOLD){
+            if(++hit>=NEED_HITS){
+                alertEl.style.display="block";
+                callEl.style.display="inline-block";
+                ruleEl.style.display="none";
+            }
+        }else hit=Math.max(0,hit-1);
     }
 </script>
 
